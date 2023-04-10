@@ -3,10 +3,10 @@
 A CLI tool for fetching MQTT stream data.
 
 - Output can be printed out directly, or directly written into a text file with
-  `-o` option.
+  the `-o` option.
 
-- Includes a HTTP Server (http://0.0.0.0:12345/) for fetching all available data
-  with JSON.
+- Includes an HTTP Server (http://0.0.0.0:12345/) for fetching all available
+  data with JSON.
 
 ## Installation
 
@@ -17,7 +17,7 @@ A CLI tool for fetching MQTT stream data.
    manager:
 
    - macOS: `brew install cmake`
-   - Debian based distro: `sudo apt install build-essential cmake`
+   - Debian-based distro: `sudo apt install build-essential cmake`
 
 3. Use [`cargo` command](https://crates.io) to install this tool.
 
