@@ -1,5 +1,10 @@
 # MQTT Client
 
+A CLI tool for fetching MQTT stream data.
+
+Include a HTTP Server (http://0.0.0.0:12345/) for fetching all available data
+with JSON.
+
 ## Installation
 
 1. Install Rust with [rustup](https://rustup.rs) (Skip this step if already
@@ -13,9 +18,9 @@
 
 3. Use [`cargo` command](https://crates.io) to install this tool.
 
-```
-cargo install mqtt-client-cli
-```
+   ```
+   cargo install mqtt-client-cli
+   ```
 
 ## Usage
 
@@ -29,6 +34,7 @@ Options:
   -u, --username <USERNAME>  Username. Optional
   -p, --password <PASSWORD>  Password. Optional
   -t, --topic <TOPIC>        Topic. Optional (Default = "#")
+  -o, --output <OUTPUT>      Output Path. All data from the MQTT stream will be stored into the specified file
   -h, --help                 Print help
   -V, --version              Print version
 ```

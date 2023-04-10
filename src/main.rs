@@ -7,8 +7,11 @@ use futures_util::stream::StreamExt;
 use mimalloc::MiMalloc;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, json, to_value, Value};
-use std::{collections::HashMap, net::SocketAddr, process::exit, sync::Arc, time::Duration};
-use tokio::sync::RwLock;
+use std::{
+    collections::HashMap, net::SocketAddr, path::PathBuf, process::exit, sync::Arc,
+    time::Duration,
+};
+use tokio::{sync::RwLock, fs};
 
 use paho_mqtt::{
     properties, AsyncClient, ConnectOptionsBuilder, CreateOptionsBuilder, PropertyCode,
@@ -35,6 +38,10 @@ struct Args {
     /// Topic. Optional (Default = "#")
     #[arg(short, long)]
     topic: Option<String>,
+
+    /// Output Path. All data from the MQTT stream will be stored into the specified file.
+    #[arg(short, long)]
+    output: Option<PathBuf>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -108,8 +115,15 @@ async fn main() {
             if let Some(message) = message_option {
                 let topic = message.topic().to_owned();
                 let payload = (*String::from_utf8_lossy(message.payload())).to_owned();
-
-                println!("{}\n{}", format!("[{}]", &topic).green(), &payload);
+                match &args.output {
+                    Some(path) => {
+                        fs::write(path, message.topic()).await.expect("Unable to write data.");
+                        fs::write(path, [b' ', b'-', b' ']).await.expect("Unable to write data.");
+                        fs::write(path, message.payload()).await.expect("Unable to write data.");
+                        fs::write(path, [b'\n']).await.expect("Unable to write data.");
+                    },
+                    None => println!("{}\n{}", format!("[{}]", &topic).green(), &payload),
+                }
                 if payload.starts_with('[') {
                     if let Ok(deserialized_data) = from_str::<Vec<HashMap<String, Value>>>(&payload)
                     {
