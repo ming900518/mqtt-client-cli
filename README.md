@@ -2,8 +2,11 @@
 
 A CLI tool for fetching MQTT stream data.
 
-Include a HTTP Server (http://0.0.0.0:12345/) for fetching all available data
-with JSON.
+- Output can be printed out directly, or directly written into a text file with
+  `-o` option.
+
+- Includes a HTTP Server (http://0.0.0.0:12345/) for fetching all available data
+  with JSON.
 
 ## Installation
 
