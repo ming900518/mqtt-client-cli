@@ -2,9 +2,16 @@
 
 ## Installation
 
-> Install Rust with [rustup](https://rustup.rs) first.
+1. Install Rust with [rustup](https://rustup.rs) (Skip this step if already
+   installed.)
 
-Use [`cargo` command](https://crates.io) to install this tool.
+2. Install dependencies (CMake and build related tools) from the package
+   manager:
+
+   - macOS: `brew install cmake`
+   - Debian based distro: `sudo apt install build-essential cmake`
+
+3. Use [`cargo` command](https://crates.io) to install this tool.
 
 ```
 cargo install mqtt-client-cli
