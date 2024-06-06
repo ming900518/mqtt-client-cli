@@ -12,7 +12,7 @@ use tokio::{fs, net::TcpListener, sync::RwLock};
 
 use paho_mqtt::{
     properties, AsyncClient, AsyncReceiver, ConnectOptionsBuilder, CreateOptionsBuilder, Message,
-    PropertyCode,
+    PropertyCode, SslOptions,
 };
 
 #[global_allocator]
@@ -40,6 +40,10 @@ struct Args {
     /// Output Path. All data from the MQTT stream will be stored into the specified file.
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    /// Mqtt Version. (Default = 3)
+    #[arg(short = 'v', long)]
+    mqtt_version: Option<u8>,
 }
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -57,8 +61,22 @@ async fn main() {
     let data_map_lock: Arc<RwLock<HashMap<String, InnerValue>>> =
         Arc::new(RwLock::new(HashMap::new()));
 
+    let mut connect_options = {
+        match (args.host.starts_with("ws"), args.mqtt_version) {
+            (true, Some(5)) => ConnectOptionsBuilder::new_ws_v5(),
+            (false, Some(5)) => ConnectOptionsBuilder::new_ws(),
+            (true, _) => ConnectOptionsBuilder::new_v5(),
+            (false, _) => ConnectOptionsBuilder::new(),
+        }
+    };
+
+    if args.host.starts_with("wss") {
+        connect_options.ssl_options(SslOptions::default());
+    }
+
     let create_options = CreateOptionsBuilder::new()
         .server_uri(args.host.clone())
+        .mqtt_version(if args.mqtt_version == Some(5) { 5 } else { 3 })
         .client_id("")
         .finalize();
 
@@ -72,7 +90,6 @@ async fn main() {
 
     let stream = client.get_stream(300);
 
-    let mut connect_options = ConnectOptionsBuilder::new();
     connect_options.keep_alive_interval(Duration::from_secs(30));
     connect_options.properties(properties![PropertyCode::SessionExpiryInterval => 3600]);
     connect_options.clean_session(true);
