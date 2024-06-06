@@ -64,8 +64,8 @@ async fn main() {
     let mut connect_options = {
         match (args.host.starts_with("ws"), args.mqtt_version) {
             (true, Some(5)) => ConnectOptionsBuilder::new_ws_v5(),
-            (false, Some(5)) => ConnectOptionsBuilder::new_ws(),
-            (true, _) => ConnectOptionsBuilder::new_v5(),
+            (false, Some(5)) => ConnectOptionsBuilder::new_v5(),
+            (true, _) => ConnectOptionsBuilder::new_ws(),
             (false, _) => ConnectOptionsBuilder::new(),
         }
     };
