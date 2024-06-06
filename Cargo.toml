@@ -1,6 +1,6 @@
 [package]
 name = "mqtt-client-cli"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 authors = ["Ming Chang <mail@mingchang.tw>"]
 description = "mqtt-client-cli - A CLI MQTT Client"
