@@ -1,6 +1,4 @@
-use axum::{
-    extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router,
-};
+use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
 use clap::Parser;
 use colored::Colorize;
 use futures_util::stream::StreamExt;
@@ -13,13 +11,14 @@ use std::{
 use tokio::{fs, net::TcpListener, sync::RwLock};
 
 use paho_mqtt::{
-    properties, AsyncClient, ConnectOptionsBuilder, CreateOptionsBuilder, PropertyCode,
+    properties, AsyncClient, AsyncReceiver, ConnectOptionsBuilder, CreateOptionsBuilder, Message,
+    PropertyCode,
 };
 
 #[global_allocator]
 static GLOBAL: MiMalloc = MiMalloc;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Host. Required
@@ -66,12 +65,12 @@ async fn main() {
     let mut client = match AsyncClient::new(create_options) {
         Ok(client) => client,
         Err(error) => {
-            eprintln!("Error when creating async client: {}.", error);
+            eprintln!("Error when creating async client: {error}.");
             exit(1)
         }
     };
 
-    let mut stream = client.get_stream(300);
+    let stream = client.get_stream(300);
 
     let mut connect_options = ConnectOptionsBuilder::new();
     connect_options.keep_alive_interval(Duration::from_secs(30));
@@ -93,7 +92,7 @@ async fn main() {
     }
 
     match client
-        .subscribe(args.topic.clone().unwrap_or("#".to_owned()), 1)
+        .subscribe(args.topic.clone().unwrap_or_else(|| "#".to_owned()), 1)
         .await
     {
         Err(error) => {
@@ -104,17 +103,25 @@ async fn main() {
             "{} Connected to {} with topic \"{}\".",
             "[INFO]".blue(),
             args.host,
-            args.topic.unwrap_or("#".to_owned())
+            args.topic.unwrap_or_else(|| "#".to_owned())
         ),
     };
-    let data_map_lock_cloned = data_map_lock.clone();
 
+    start_http_server(args.output, stream, data_map_lock).await;
+}
+
+async fn start_http_server(
+    output: Option<PathBuf>,
+    mut stream: AsyncReceiver<Option<Message>>,
+    data_map_lock: Arc<RwLock<HashMap<String, InnerValue>>>,
+) {
+    let data_map_lock_cloned = data_map_lock.clone();
     tokio::spawn(async move {
         while let Some(message_option) = stream.next().await {
             if let Some(message) = message_option {
                 let topic = message.topic().to_owned();
                 let payload = (*String::from_utf8_lossy(message.payload())).to_owned();
-                match &args.output {
+                match &output {
                     Some(path) => {
                         fs::write(path, message.topic())
                             .await
@@ -180,7 +187,7 @@ async fn main() {
                     "{} HTTP Server failed to initalize, reason: {}.",
                     "[WARN]".yellow(),
                     error
-                )
+                );
             };
         }
         Err(error) => {
@@ -188,7 +195,7 @@ async fn main() {
                 "{} TCP Listener failed to initalize, reason: {}.",
                 "[WARN]".yellow(),
                 error
-            )
+            );
         }
     }
 }
@@ -196,20 +203,12 @@ async fn main() {
 async fn get_mqtt_info(
     State(data_map_lock): State<Arc<RwLock<HashMap<String, InnerValue>>>>,
 ) -> impl IntoResponse {
-    loop {
-        let Ok(data_map) = data_map_lock.try_read() else {
-            continue;
-        };
-        match to_value(data_map.clone()) {
-            Ok(body) => {
-                return (StatusCode::OK, Json(body));
-            }
-            Err(err) => {
-                return (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({"error_message": err.to_string()})),
-                );
-            }
-        }
+    let data_map = data_map_lock.read().await.clone();
+    match to_value(data_map) {
+        Ok(body) => (StatusCode::OK, Json(body)),
+        Err(err) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"error_message": err.to_string()})),
+        ),
     }
 }
