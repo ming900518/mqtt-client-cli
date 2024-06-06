@@ -1,5 +1,5 @@
 use axum::{
-    extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router, Server,
+    extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router,
 };
 use clap::Parser;
 use colored::Colorize;
@@ -8,10 +8,9 @@ use mimalloc::MiMalloc;
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, json, to_value, Value};
 use std::{
-    collections::HashMap, net::SocketAddr, path::PathBuf, process::exit, sync::Arc,
-    time::Duration,
+    collections::HashMap, net::SocketAddr, path::PathBuf, process::exit, sync::Arc, time::Duration,
 };
-use tokio::{sync::RwLock, fs};
+use tokio::{fs, net::TcpListener, sync::RwLock};
 
 use paho_mqtt::{
     properties, AsyncClient, ConnectOptionsBuilder, CreateOptionsBuilder, PropertyCode,
@@ -117,11 +116,19 @@ async fn main() {
                 let payload = (*String::from_utf8_lossy(message.payload())).to_owned();
                 match &args.output {
                     Some(path) => {
-                        fs::write(path, message.topic()).await.expect("Unable to write data.");
-                        fs::write(path, [b' ', b'-', b' ']).await.expect("Unable to write data.");
-                        fs::write(path, message.payload()).await.expect("Unable to write data.");
-                        fs::write(path, [b'\n']).await.expect("Unable to write data.");
-                    },
+                        fs::write(path, message.topic())
+                            .await
+                            .expect("Unable to write data.");
+                        fs::write(path, [b' ', b'-', b' '])
+                            .await
+                            .expect("Unable to write data.");
+                        fs::write(path, message.payload())
+                            .await
+                            .expect("Unable to write data.");
+                        fs::write(path, [b'\n'])
+                            .await
+                            .expect("Unable to write data.");
+                    }
                     None => println!("{}\n{}", format!("[{}]", &topic).green(), &payload),
                 }
                 if payload.starts_with('[') {
@@ -160,14 +167,29 @@ async fn main() {
         .into_make_service();
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 12345));
+
     eprintln!("{} Starting HTTP Server... You can fetch all available data from http://{}/ if no error reported.", "[INFO]".blue(), addr);
 
-    if let Err(err) = Server::bind(&addr).serve(router).await {
-        eprintln!(
-            "{} HTTP Server not started, reason: {}.",
-            "[WARN]".yellow(),
-            err
-        )
+    match TcpListener::bind(addr)
+        .await
+        .map(|tcp_server| axum::serve(tcp_server, router))
+    {
+        Ok(serve) => {
+            if let Err(error) = serve.await {
+                eprintln!(
+                    "{} HTTP Server failed to initalize, reason: {}.",
+                    "[WARN]".yellow(),
+                    error
+                )
+            };
+        }
+        Err(error) => {
+            eprintln!(
+                "{} TCP Listener failed to initalize, reason: {}.",
+                "[WARN]".yellow(),
+                error
+            )
+        }
     }
 }
 
