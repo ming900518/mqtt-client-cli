@@ -1,4 +1,6 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, routing::get, Json, Router};
+use axum::{
+    debug_handler, extract::State, http::StatusCode, response::IntoResponse, routing::{get, post}, Json, Router
+};
 use clap::Parser;
 use colored::Colorize;
 use futures_util::stream::StreamExt;
@@ -11,8 +13,7 @@ use std::{
 use tokio::{fs, net::TcpListener, sync::RwLock};
 
 use paho_mqtt::{
-    properties, AsyncClient, AsyncReceiver, ConnectOptionsBuilder, CreateOptionsBuilder, Message,
-    PropertyCode, SslOptions,
+    properties, AsyncClient, AsyncReceiver, ConnectOptionsBuilder, CreateOptionsBuilder, Message, MessageBuilder, PropertyCode, SslOptions
 };
 
 #[global_allocator]
@@ -52,6 +53,12 @@ enum InnerValue {
     String(String),
     Json(HashMap<String, Value>),
     JsonArray(Vec<HashMap<String, Value>>),
+}
+
+#[derive(Clone)]
+struct AppState {
+    data_map_lock: Arc<RwLock<HashMap<String, InnerValue>>>,
+    client: AsyncClient,
 }
 
 #[tokio::main]
@@ -124,15 +131,23 @@ async fn main() {
         ),
     };
 
-    start_http_server(args.output, stream, data_map_lock).await;
+    start_http_server(
+        args.output,
+        AppState {
+            data_map_lock,
+            client,
+        },
+        stream,
+    )
+    .await;
 }
 
 async fn start_http_server(
     output: Option<PathBuf>,
+    app_state: AppState,
     mut stream: AsyncReceiver<Option<Message>>,
-    data_map_lock: Arc<RwLock<HashMap<String, InnerValue>>>,
 ) {
-    let data_map_lock_cloned = data_map_lock.clone();
+    let data_map_lock_cloned = app_state.data_map_lock.clone();
     tokio::spawn(async move {
         while let Some(message_option) = stream.next().await {
             if let Some(message) = message_option {
@@ -187,7 +202,8 @@ async fn start_http_server(
 
     let router = Router::new()
         .route("/", get(get_mqtt_info))
-        .with_state(data_map_lock.clone())
+        .route("/publish", post(publish_message))
+        .with_state(app_state)
         .into_make_service();
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 12345));
@@ -217,8 +233,12 @@ async fn start_http_server(
     }
 }
 
+#[debug_handler]
 async fn get_mqtt_info(
-    State(data_map_lock): State<Arc<RwLock<HashMap<String, InnerValue>>>>,
+    State(AppState {
+        data_map_lock,
+        client: _,
+    }): State<AppState>,
 ) -> impl IntoResponse {
     let data_map = data_map_lock.read().await.clone();
     match to_value(data_map) {
@@ -226,6 +246,42 @@ async fn get_mqtt_info(
         Err(err) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(json!({"error_message": err.to_string()})),
+        ),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct PublishRequest {
+    topic: String,
+    message: String,
+    retain: bool,
+}
+
+#[debug_handler]
+async fn publish_message(
+    State(AppState {
+        data_map_lock: _,
+        client,
+    }): State<AppState>,
+    Json(PublishRequest {
+        topic,
+        message,
+        retain,
+    }): Json<PublishRequest>,
+) -> impl IntoResponse {
+    let result = client.try_publish(
+        MessageBuilder::new()
+            .topic(topic)
+            .payload(message.into_bytes())
+            .retained(retain)
+            .finalize(),
+    );
+
+    match result {
+        Ok(_) => (StatusCode::CREATED, String::from("Message published.")),
+        Err(error) => (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Error when publishing payload: {error:?}."),
         ),
     }
 }

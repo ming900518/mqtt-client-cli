@@ -1,6 +1,6 @@
 [package]
 name = "mqtt-client-cli"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2021"
 authors = ["Ming Chang <mail@mingchang.tw>"]
 description = "mqtt-client-cli - A CLI MQTT Client"
@@ -10,15 +10,15 @@ categories = ["command-line-utilities"]
 license = "MIT"
 
 [dependencies]
-paho-mqtt = { version = "0.12.5" }
-tokio = { version = "1.38.0", features = ["full"] }
-futures-util = "0.3.30"
-serde = { version = "1.0.203", features = ["derive"] }
-serde_json = "1.0.117"
-axum = { version = "0.7.5", features = ["query"] }
-mimalloc = "0.1.42"
-clap = { version = "4.5.4", features = ["derive"] }
-colored = "2.1.0"
+paho-mqtt = { version = "0.13.0" }
+tokio = { version = "1.43.0", features = ["full"] }
+futures-util = "0.3.31"
+serde = { version = "1.0.217", features = ["derive"] }
+serde_json = "1.0.137"
+axum = { version = "0.8.1", features = ["query", "macros"] }
+mimalloc = "0.1.43"
+clap = { version = "4.5.27", features = ["derive"] }
+colored = "3.0.0"
 
 [profile.release]
 strip = true
